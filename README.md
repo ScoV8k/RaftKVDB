@@ -125,10 +125,22 @@ Komunikacja klientów z bazą za pomocą TCP.
 
 ## Architektura rozwiązania
 
-### Struktura logiczna systemu
-- **Lider:** Koordynuje operacje i propaguje zmiany.
-- **Replikanty:** Przechowują dane i synchronizują logi z liderem.
-- **Klient:** Wysyła żądania do klastra.
+### Komponenty systemu
+1. **Lider (Leader)**  
+   - Odpowiedzialny za obsługę wszystkich operacji zapisu (CRUD).
+   - Synchronizuje dane z replikami w klastrze.
+   - Obsługuje komunikację z klientami.
+
+2. **Repliki (Followers)**  
+   - Przechowują kopie danych otrzymane od lidera.
+   - Weryfikują stan synchronizacji z liderem.
+   - Mogą przejąć rolę lidera w przypadku jego awarii.
+
+3. **Klient**  
+   - Umożliwia użytkownikowi wykonywanie operacji na bazie danych.
+   - Łączy się z systemem za pomocą protokołu TCP.
+
+---
 
 ```mermaid
 graph TD
@@ -137,3 +149,25 @@ graph TD
     Lider --> Replikant2
     Lider --> ReplikantN
 ```
+
+### Diagram Architektury
+
+```plaintext
+                 +--------------------+  
+                 |      Klient        |  
+                 +--------------------+  
+                          | TCP  
+                          ▼  
+              +-----------------------+  
+              |        Lider          |  
+              |  (Zarządzanie CRUD)   |  
+              +-----------------------+  
+                          | Raft Sync  
+         +----------------+------+----------------+  
+         |                       |                |  
+  +-----------------+   +-----------------+   +-----------------+  
+  |    Replika 1    |   |    Replika 2    |   |    Replika 3    |  
+  +-----------------+   +-----------------+   +-----------------+  
+         |                       |                |  
+   Monitorowanie        Monitorowanie      Monitorowanie  
+   stanu/synchronizacji stanu/synchronizacji stanu/synchronizacji  
