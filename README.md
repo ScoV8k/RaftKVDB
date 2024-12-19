@@ -142,6 +142,8 @@ Komunikacja klientów z bazą za pomocą TCP.
 
 ---
 
+### Diagram Architektury
+
 ```mermaid
 graph TD
     Klient --> Lider
@@ -149,25 +151,3 @@ graph TD
     Lider --> Replikant2
     Lider --> ReplikantN
 ```
-
-### Diagram Architektury
-
-```plaintext
-                 +--------------------+  
-                 |      Klient        |  
-                 +--------------------+  
-                          | TCP  
-                          ▼  
-              +-----------------------+  
-              |        Lider          |  
-              |  (Zarządzanie CRUD)   |  
-              +-----------------------+  
-                          | Raft Sync  
-         +----------------+------+----------------+  
-         |                       |                |  
-  +-----------------+   +-----------------+   +-----------------+  
-  |    Replika 1    |   |    Replika 2    |   |    Replika 3    |  
-  +-----------------+   +-----------------+   +-----------------+  
-         |                       |                |  
-   Monitorowanie        Monitorowanie      Monitorowanie  
-   stanu/synchronizacji stanu/synchronizacji stanu/synchronizacji  
