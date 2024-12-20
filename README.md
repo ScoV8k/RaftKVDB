@@ -209,3 +209,59 @@ Testowanie systemu obejmuje:
 5. **Narzędzia używane do testowania**  
    - `pytest`: Framework do testów jednostkowych.
    - Symulacje sieciowe z wykorzystaniem bibliotek Python (`asyncio`, `socket`).
+
+## Podział prac w zespole  
+
+### Mikołaj (Algorytm Raft i synchronizacja):  
+- Implementacja algorytmu Raft (wybór lidera, synchronizacja danych, heartbeat).  
+- Obsługa dodawania i usuwania instancji z klastra.  
+
+### Ivan (Interfejs klienta i komunikacja TCP):  
+- Implementacja komunikacji klient-serwer za pomocą TCP.  
+- Tworzenie prostego interfejsu wiersza poleceń (put, get, update, delete).  
+- Obsługa błędów komunikacji z klientem.  
+
+### Sofiya (Repliki, testy i dokumentacja):  
+- Implementacja działania replik (potwierdzenia synchronizacji, obsługa awarii).  
+- Testy jednostkowe i integracyjne dla całego systemu.  
+- Przygotowanie dokumentacji technicznej i raportów z testów.  
+
+
+## Przewidywane funkcje do zademonstrowania w ramach odbioru częściowego  
+
+1. Połączenie klienta z systemem za pomocą protokołu TCP.  
+2. Podstawowa obsługa algorytmu Raft:  
+   - Wybór lidera i synchronizacja danych między liderem a replikami.  
+3. Obsługa operacji CRUD (put, get, update, delete).  
+4. Obsługa awarii lidera i wyboru nowego lidera.  
+5. Obsługa błędów:  
+   - Niepoprawny format komend.  
+   - Operacje na nieistniejących kluczach.  
+
+
+## Plan pracy z podziałem na tygodnie  
+
+### **Do 20 grudnia:**  
+- Stworzenie repozytorium projektu na GitLab.  
+- Dodanie pliku README z opisem założeń i architektury.  
+
+### **21 grudnia – 30 grudnia:**  
+- **Mikołaj:** Rozpoczęcie implementacji algorytmu Raft (wybór lidera, heartbeat).  
+- **Ivan:** Stworzenie podstawowej komunikacji klient-serwer za pomocą TCP.  
+- **Sofiya:** Opracowanie mechanizmu replikacji danych i przygotowanie testów jednostkowych.  
+
+### **31 grudnia – 10 stycznia:**  
+- **Mikołaj:** Dodanie synchronizacji danych między liderem a replikami.  
+- **Ivan:** Implementacja obsługi komend klienta (`put`, `get`, `update`, `delete`).  
+- **Sofiya:** Testowanie operacji CRUD i synchronizacji w normalnym trybie pracy.  
+- Zintegrowanie wszystkich modułów.  
+- Przygotowanie demonstracji funkcji do odbioru częściowego.  
+- Testy integracyjne i dodanie tagu `alpha` w repozytorium.  
+
+### **11 stycznia – 18 stycznia:**  
+- Rozbudowa systemu o obsługę dodawania/usuwania instancji w trakcie działania.  
+- Rozwiązanie problemów wykrytych podczas testów częściowych.  
+
+### **21 stycznia – 24 stycznia:**  
+- Przygotowanie prezentacji projektu i testów do końcowej demonstracji.  
+- Ostateczna integracja i sprawdzenie stabilności systemu w różnych scenariuszach.  
