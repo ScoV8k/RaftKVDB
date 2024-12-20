@@ -151,3 +151,61 @@ graph TD
     Lider --> Replikant2
     Lider --> ReplikantN
 ```
+
+### Ewentualnie API modułów stanowiących główne bloki funkcjonalne
+
+System składa się z następujących głównych modułów:
+- **Lider (Leader)**: Odpowiada za zarządzanie operacjami zapisu i synchronizację z replikami.
+- **Repliki (Followers)**: Przechowują kopie danych i mogą przejąć rolę lidera.
+- **Klient**: Umożliwia użytkownikom interakcję z systemem.
+
+API umożliwia komunikację między tymi modułami:
+
+1. **Klient -> Lider**
+   - `put <key> <value>`: Dodanie wartości.
+   - `get <key>`: Pobranie wartości.
+   - `update <key> <value>`: Aktualizacja wartości.
+   - `delete <key>`: Usunięcie wartości.
+
+2. **Lider -> Repliki**
+   - Synchronizacja operacji: Lider wysyła dane do replik w formacie `(key, value)`.
+   - Wiadomości kontrolne: Komunikaty informujące o stanie synchronizacji.
+
+3. **Repliki -> Lider**
+   - Potwierdzenie synchronizacji: Repliki informują lidera o statusie operacji.
+
+### Ewentualnie listy komunikatów z określeniem nadawców i odbiorców
+
+| Nadawca  | Odbiorca     | Typ komunikatu                          | Opis                                      |
+|----------|--------------|-----------------------------------------|------------------------------------------|
+| Klient   | Lider        | `put <key> <value>`                    | Żądanie dodania wartości do bazy.         |
+| Klient   | Lider        | `get <key>`                            | Żądanie odczytu wartości.                 |
+| Klient   | Lider        | `update <key> <value>`                 | Żądanie aktualizacji wartości.            |
+| Klient   | Lider        | `delete <key>`                         | Żądanie usunięcia wartości.               |
+| Lider    | Repliki      | `AppendEntries (key, value)`           | Synchronizacja danych z replikami.        |
+| Lider    | Repliki      | `Heartbeat`                            | Informacja o żywotności lidera.           |
+| Repliki  | Lider        | `Acknowledgment`                       | Potwierdzenie otrzymania danych.          |
+| Replika  | Lider        | `RequestVote`                          | Żądanie głosu w procesie wyboru lidera.   |
+
+### Sposób testowania
+
+Testowanie systemu obejmuje:
+
+1. **Testy jednostkowe**  
+   - Testowanie operacji CRUD dla lidera i replik.
+   - Weryfikacja poprawności implementacji algorytmu Raft (np. wybór lidera).
+
+2. **Testy integracyjne**  
+   - Symulacja komunikacji między liderem a replikami.
+   - Testowanie synchronizacji danych w scenariuszach awarii i ich naprawy.
+
+3. **Testy wydajnościowe**  
+   - Ocena czasu odpowiedzi na operacje CRUD przy zwiększonym obciążeniu.
+   - Sprawdzenie stabilności klastra podczas dodawania/usuwania węzłów.
+
+4. **Testy akceptacyjne**  
+   - Symulacja realistycznych przypadków użycia, takich jak dodanie nowego węzła do klastra czy odzyskanie synchronizacji po awarii.
+
+5. **Narzędzia używane do testowania**  
+   - `pytest`: Framework do testów jednostkowych.
+   - Symulacje sieciowe z wykorzystaniem bibliotek Python (`asyncio`, `socket`).
