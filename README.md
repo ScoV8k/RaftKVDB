@@ -241,10 +241,6 @@ Testowanie systemu obejmuje:
 
 ## Plan pracy z podziałem na tygodnie  
 
-### **Do 20 grudnia:**  
-- Stworzenie repozytorium projektu na GitLab.  
-- Dodanie pliku README z opisem założeń i architektury.  
-
 ### **21 grudnia – 30 grudnia:**  
 - **Mikołaj:** Rozpoczęcie implementacji algorytmu Raft (wybór lidera, heartbeat).  
 - **Ivan:** Stworzenie podstawowej komunikacji klient-serwer za pomocą TCP.  
