@@ -1,5 +1,6 @@
 import time
 from node import Node
+import signal
 
 def create_network():
     nodes = []
@@ -17,9 +18,23 @@ def start_network(nodes):
     for node in nodes:
         node.run()
 
+def stop_network(nodes):
+    print("Stopping network...")
+    for node in nodes:
+        node.running = False
+    print("All nodes stopped.")
+
 if __name__ == "__main__":
     print("Starting network...")
     nodes = create_network()
+    
+    def handle_exit(signum, frame):
+        stop_network(nodes)
+        exit(0)
+
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
     start_network(nodes)
 
     while True:
