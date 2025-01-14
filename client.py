@@ -28,5 +28,6 @@ class ClientHandler:
 
                     conn.sendall(response.encode() + b"\n")
                 except Exception as e:
+                    print(f'ERROR - Error handling client connection:{e}')
                     conn.sendall(f"ERROR: {str(e)}\n".encode())
                     break
