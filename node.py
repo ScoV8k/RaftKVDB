@@ -113,7 +113,7 @@ class Node:
         while self.running:
             try:
                 if self.state != "leader" and time.time() - self.last_heartbeat > self.election_timeout:
-                    logging.warning(f"Node {self.node_id}: Election timeout!")
+                    logging.warning(f"Node {self.node_id}: Election timeout! [ALARM] Election starts")
                     self.leader = None
                     self.start_election()
             except Exception as e:
