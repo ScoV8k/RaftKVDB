@@ -33,7 +33,7 @@ class Node:
         self.client_socket.bind((host, port + 100))
         self.client_socket.listen(5)
         
-        self.database = Database(self)
+        self.database = Database()
         self.client_handler = ClientHandler(self.database)
         logging.info(f"Node {self.node_id} started at port {self.port} (Raft) and {self.port + 100} (Client)")
 
@@ -93,15 +93,6 @@ class Node:
         }
         self.broadcast(sync_message)
 
-    def sync_delete(self, key):
-        delete_message = {
-            "type": "sync_delete",
-            "leader_id": self.node_id,
-            "term": self.current_term,
-            "key": key
-        }
-        self.broadcast(delete_message)
-
     def send_heartbeat(self):
         while self.running:
             try:
@@ -112,6 +103,7 @@ class Node:
                         "term": self.current_term
                     }
                     self.broadcast(heartbeat)
+                    self.sync_data()
                     logging.info(f"Node {self.node_id} (Leader): Sending heartbeat for term {self.current_term}")
             except Exception as e:
                 logging.error(f"Error sending heartbeat: {e}")
@@ -156,28 +148,10 @@ class Node:
                         for key, value in message["data"].items():
                             if key not in self.database.store:
                                 self.database.store[key] = value
+                        for old_key in self.database.store:
+                            if old_key not in message["data"]:
+                                del self.database.store[old_key]
                         print(f"Node {self.node_id}: Synchronized data from leader {message['leader_id']}")
-
-                elif message["type"] == "sync_delete":
-                    if message["term"] >= self.current_term:
-                        key = message["key"]
-                        if key in self.database.store:
-                            del self.database.store[key]
-                        print(f"Node {self.node_id}: Synchronized delete for key '{key}' from leader {message['leader_id']}")
-
-                elif message["type"] == "sync_data":
-                    if message["term"] >= self.current_term:
-                        for key, value in message["data"].items():
-                            if key not in self.database.store:
-                                self.database.store[key] = value
-                        print(f"Node {self.node_id}: Synchronized data from leader {message['leader_id']}")
-
-                elif message["type"] == "sync_delete":
-                    if message["term"] >= self.current_term:
-                        key = message["key"]
-                        if key in self.database.store:
-                            del self.database.store[key]
-                        print(f"Node {self.node_id}: Synchronized delete for key '{key}' from leader {message['leader_id']}")
 
                 elif message["type"] == "request_vote":
                     if message["term"] >= self.current_term and (self.voted_for is None or self.voted_for == message["candidate_id"]):
