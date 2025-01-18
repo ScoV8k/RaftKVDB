@@ -151,7 +151,7 @@ class Node:
                         for old_key in self.database.store:
                             if old_key not in message["data"]:
                                 del self.database.store[old_key]
-                        print(f"Node {self.node_id}: Synchronized data from leader {message['leader_id']}")
+                        logging.info(f"Node {self.node_id}: Synchronized data from leader {self.leader}")
 
                 elif message["type"] == "request_vote":
                     if message["term"] >= self.current_term and (self.voted_for is None or self.voted_for == message["candidate_id"]):
