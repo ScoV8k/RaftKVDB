@@ -34,11 +34,46 @@ class Node:
         self.client_socket.listen(5)
         
         self.database = Database()
-        self.client_handler = ClientHandler(self.database)
+        self.client_handler = ClientHandler(self.database, self)
         logging.info(f"Node {self.node_id} started at port {self.port} (Raft) and {self.port + 100} (Client)")
+
+        self.next_index = {} 
+        self.match_index = {}
+        self.commit_index = -1 
+        
+        for peer in peers:
+            self.next_index[peer] = 0
+            self.match_index[peer] = -1
+
+
+    def sync_data(self):
+        """Send AppendEntries RPCs to all followers to replicate log entries."""
+        if self.state != "leader":
+            return
+
+        for peer in self.peers:
+            next_idx = self.next_index[peer]
+            
+            # Prepare entries to send
+            entries = self.database.log[next_idx:] if next_idx < len(self.database.log) else []
+            
+            append_entries_msg = {
+                "type": "append_entries",
+                "term": self.current_term,
+                "leader_id": self.node_id,
+                "prev_log_index": next_idx - 1,
+                "prev_log_term": self.database.log[next_idx - 1]["term"] if next_idx > 0 else 0,
+                "entries": entries,
+                "leader_commit": self.commit_index
+            }
+            
+            self.send_message(append_entries_msg, peer)
 
     def generate_election_timeout(self):
         return random.uniform(3, 6)
+    
+    def add_node(self):
+        pass
 
     def send_message(self, message, destination):
         try:
@@ -84,14 +119,14 @@ class Node:
                 }
                 self.broadcast(leader_message)
 
-    def sync_data(self):
-        sync_message = {
-            "type": "sync_data",
-            "leader_id": self.node_id,
-            "term": self.current_term,
-            "data": self.database.store
-        }
-        self.broadcast(sync_message)
+    # def sync_data(self):
+    #     sync_message = {
+    #         "type": "sync_data",
+    #         "leader_id": self.node_id,
+    #         "term": self.current_term,
+    #         "data": self.database.store
+    #     }
+    #     self.broadcast(sync_message)
 
     def send_heartbeat(self):
         while self.running:
@@ -119,6 +154,29 @@ class Node:
             except Exception as e:
                 logging.error(f"Error checking leader: {e}")
             time.sleep(0.1)
+
+
+    def handle_client_operation(self, operation, key, value=None):
+        """Handle client operations by adding them to the log and replicating."""
+        if self.state != "leader":
+            return f"ERROR: Not the leader. Current leader is {self.leader}"
+
+        log_entry = {
+            "term": self.current_term,
+            "operation": operation,
+            "key": key,
+            "value": value
+        }
+
+        log_index = self.database.append_log(log_entry)
+        
+        result = self.database.apply_log_entry(log_entry)
+
+        self.commit_index = log_index
+        self.database.commit_index = log_index
+        self.sync_data()
+        
+        return result
 
     def handle_messages(self):
         while self.running:
@@ -192,11 +250,55 @@ class Node:
                             self.state = "follower"
                             self.voted_for = None
                         self.last_heartbeat = time.time()
+                elif message["type"] == "append_entries":
+                    response = self.handle_append_entries(message, addr)
+                    if response:
+                        self.send_message(response, addr)
 
             except json.JSONDecodeError as e:
                 logging.error(f"Error decoding message: {e}")
             except Exception as e:
                 logging.error(f"Error handling message: {e}")
+
+    def handle_append_entries(self, message, sender_addr):
+        """Handle AppendEntries RPC from leader."""
+        response = {
+            "type": "append_entries_response",
+            "term": self.current_term,
+            "success": False,
+            "node_id": self.node_id
+        }
+        if message["term"] < self.current_term:
+            return response
+
+        self.last_heartbeat = time.time()
+        self.leader = message["leader_id"]
+
+        if message["term"] > self.current_term:
+            self.current_term = message["term"]
+            self.voted_for = None
+
+        prev_log_index = message["prev_log_index"]
+        if prev_log_index >= len(self.database.log):
+            return response
+        
+        if prev_log_index >= 0 and self.database.log[prev_log_index]["term"] != message["prev_log_term"]:
+            return response
+
+        for i, entry in enumerate(message["entries"]):
+            log_index = prev_log_index + 1 + i
+            if log_index < len(self.database.log):
+                if self.database.log[log_index]["term"] != entry["term"]:
+                    self.database.log = self.database.log[:log_index]
+                    self.database.log.append(entry)
+            else:
+                self.database.log.append(entry)
+
+        if message["leader_commit"] > self.database.commit_index:
+            self.database.commit_log_entries(min(message["leader_commit"], len(self.database.log) - 1))
+
+        response["success"] = True
+        return response
 
     def start_client_handler(self):
         while self.running:

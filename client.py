@@ -1,6 +1,7 @@
 class ClientHandler:
-    def __init__(self, database):
+    def __init__(self, database, node):
         self.database = database
+        self.node = node
 
     def handle_client(self, conn, addr):
         with conn:
@@ -16,15 +17,16 @@ class ClientHandler:
                     response = "ERROR: Invalid command format."
 
                     if command[0].upper() == "PUT" and len(command) == 3:
-                        response = self.database.set(command[1], command[2])
+                        response = self.node.handle_client_operation("SET", command[1], command[2])
                     elif command[0].upper() == "GET" and len(command) == 2:
                         response = self.database.get(command[1])
                     elif command[0].upper() == "UPDATE" and len(command) == 3:
-                        response = self.database.update(command[1], command[2])
+                        response = self.node.handle_client_operation("UPDATE", command[1], command[2])
                     elif command[0].upper() == "DELETE" and len(command) == 2:
-                        response = self.database.delete(command[1])
+                        response = self.node.handle_client_operation("DELETE", command[1])
                     elif command[0].upper() == "STATUS" and len(command) == 1:
                         response = self.database.status()
+
 
                     conn.sendall(response.encode() + b"\n")
                 except Exception as e:
