@@ -4,10 +4,15 @@ class ClientHandler:
         self.node = node
 
     def handle_client(self, conn, addr):
+        if not self.node.running:
+            conn.close()
+            return
         with conn:
             print(f"Client connected: {addr}")
+            if self.node.state == "leader":
+                conn.sendall(b"Control cluster commands: ADD-NODE [new node ip], REMOVE-NODE [node ip], CLUSTER-STATUS\n")
             conn.sendall(b"Welcome to the Node database. Commands: PUT key value, GET key, UPDATE key value, DELETE key, STATUS\n")
-            while True:
+            while self.node.running:
                 try:
                     data = conn.recv(1024).decode().strip()
                     if not data:
@@ -16,7 +21,19 @@ class ClientHandler:
                     command = data.split()
                     response = "ERROR: Invalid command format."
 
-                    if command[0].upper() == "PUT" and len(command) == 3:
+                    if command[0].upper() == "ADD-NODE" \
+                        and len(command) == 2 \
+                        and self.node.state == "leader":
+                        response = self.node.add_node(command[1])
+                    elif command[0].upper() == "REMOVE-NODE" \
+                        and len(command) == 2 \
+                        and self.node.state == "leader":
+                        response = self.node.remove_node(command[1])
+                    elif command[0].upper() == "CLUSTER-STATUS" \
+                        and len(command) == 1 \
+                        and self.node.state == "leader":
+                        response = self.node.get_cluster_status()
+                    elif command[0].upper() == "PUT" and len(command) == 3:
                         response = self.node.handle_client_operation("SET", command[1], command[2])
                     elif command[0].upper() == "GET" and len(command) == 2:
                         response = self.database.get(command[1])

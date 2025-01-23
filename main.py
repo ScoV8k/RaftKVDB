@@ -1,6 +1,7 @@
 import time
 from node import Node
 import signal
+import threading
 
 def create_network():
     nodes = []
@@ -21,8 +22,13 @@ def start_network(nodes):
 def stop_network(nodes):
     print("Stopping network...")
     for node in nodes:
-        node.running = False
+        node.stop()
     print("All nodes stopped.")
+
+def start_new_node(node_id, host, port, peers):
+    new_node = Node(node_id, host, port, peers)
+    threading.Thread(target=new_node.run, daemon=True).start()
+    return new_node
 
 if __name__ == "__main__":
     print("Starting network...")

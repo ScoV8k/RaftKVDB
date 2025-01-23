@@ -47,7 +47,6 @@ class Node:
 
 
     def sync_data(self):
-        """Send AppendEntries RPCs to all followers to replicate log entries."""
         if self.state != "leader":
             return
 
@@ -119,15 +118,6 @@ class Node:
                 }
                 self.broadcast(leader_message)
 
-    # def sync_data(self):
-    #     sync_message = {
-    #         "type": "sync_data",
-    #         "leader_id": self.node_id,
-    #         "term": self.current_term,
-    #         "data": self.database.store
-    #     }
-    #     self.broadcast(sync_message)
-
     def send_heartbeat(self):
         while self.running:
             try:
@@ -157,7 +147,6 @@ class Node:
 
 
     def handle_client_operation(self, operation, key, value=None):
-        """Handle client operations by adding them to the log and replicating."""
         if self.state != "leader":
             return f"ERROR: Not the leader. Current leader is {self.leader}"
 
@@ -255,13 +244,23 @@ class Node:
                     if response:
                         self.send_message(response, addr)
 
+                elif message["type"] == "remove_node":
+                    removed_node = message["removed_node"]
+                    if removed_node in self.peers:
+                        self.peers.remove(removed_node)
+                        self.next_index.pop(removed_node, None)
+                        self.match_index.pop(removed_node, None)
+                        logging.info(f"Node {self.node_id}: Node {removed_node} removed from cluster by leader.")
+                elif message["type"] == "stop_node":
+                    logging.info(f"Node {self.node_id}: Received stop signal. Stopping...")
+                    self.stop()
+
             except json.JSONDecodeError as e:
                 logging.error(f"Error decoding message: {e}")
             except Exception as e:
                 logging.error(f"Error handling message: {e}")
 
     def handle_append_entries(self, message, sender_addr):
-        """Handle AppendEntries RPC from leader."""
         response = {
             "type": "append_entries_response",
             "term": self.current_term,
@@ -316,3 +315,85 @@ class Node:
             threading.Thread(target=self.start_client_handler, daemon=True).start()
         except Exception as e:
             logging.critical(f"Error starting node: {e}")
+
+    def broadcast_remove_node(self, address):
+        remove_message = {
+            "type": "remove_node",
+            "removed_node": address
+        }
+        self.broadcast(remove_message)
+
+    def add_node(self, address):
+        try:
+            host, port = address.split(":")
+            port = int(port)
+        except ValueError:
+            return "ERROR: Invalid address format. Use host:port."
+
+        if (host, port) not in self.peers:
+            from main import start_new_node
+            start_new_node(f"Node_{len(self.peers) + 2}", host, port, [(self.host, self.port)] + self.peers)
+
+            self.peers.append((host, port))
+            self.next_index[(host, port)] = 0
+            self.match_index[(host, port)] = -1
+            logging.info(f"Node {self.node_id}: Added node {address} to cluster.")
+            return f"SUCCESS: Node {address} added to cluster."
+        return f"ERROR: Node {address} already exists in cluster."
+    
+    def remove_node(self, address):
+        try:
+            host, port = address.split(":")
+            port = int(port)
+        except ValueError:
+            return "ERROR: Invalid address format. Use host:port."
+
+        if address == f"{self.host}:{self.port}":
+            logging.warning(f"Node {self.node_id}: Attempting to remove the leader (self).")
+            
+            self.broadcast_remove_node(address)
+            self.stop()
+            logging.info(f"Node {self.node_id}: Stopping self as leader.")
+            return "SUCCESS: Leader removed. Triggering new election."
+
+        if (host, port) in self.peers:
+            stop_message = {
+                "type": "stop_node"
+            }
+            self.send_message(stop_message, (host, port))
+
+            self.peers.remove((host, port))
+            self.next_index.pop((host, port), None)
+            self.match_index.pop((host, port), None)
+
+            self.broadcast_remove_node(address)
+
+            logging.info(f"Node {self.node_id}: Removed node {address} from cluster.")
+            return f"SUCCESS: Node {address} removed from cluster."
+
+        return f"ERROR: Node {address} does not exist in cluster."
+
+    def get_cluster_status(self):
+        leader = self.leader if self.leader else "Unknown"
+        active_nodes = [f"{self.host}:{self.port}"] + [f"{peer[0]}:{peer[1]}" for peer in self.peers]
+        sync_status = "All nodes in sync." if all(
+            self.match_index.get(peer) == len(self.database.log) - 1 for peer in self.peers
+        ) else "Nodes out of sync."
+        
+        status = (
+            f"Cluster Status:\n"
+            f"Leader: {leader}\n"
+            f"Active Nodes: {active_nodes}\n"
+            f"Sync Status: {sync_status}"
+        )
+        return status
+    
+    def stop(self):
+        self.running = False
+        try:
+            self.raft_socket.close()
+            self.client_socket.close()
+            self.client_socket = None
+        except Exception as e:
+            logging.error(f"Node {self.node_id}: Error while closing sockets: {e}")
+        logging.info(f"Node {self.node_id} has been stopped.")
