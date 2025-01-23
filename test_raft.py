@@ -104,10 +104,118 @@ def test_concurrent_operations(basic_network):
     total_keys = sum(1 for key in leader.database.store.keys() if key.startswith("conc_key"))
     assert total_keys == 15
 
-def test_cluster_stability(client_connection):
+def test_put_existing_key(client_connection):
     sock, _ = client_connection
     
-    sock.sendall(b"STATUS\n")
-    time.sleep(0.1)
+    sock.sendall(b"PUT duplicate_key initial_value\n")
+    sock.recv(1024)
+    
+    sock.sendall(b"PUT duplicate_key new_value\n")
     response = sock.recv(1024).decode()
-    assert "Database" in response
+    assert "ERROR: Key already exists" in response
+
+def test_update_nonexistent_key(client_connection):
+    sock, _ = client_connection
+    sock.sendall(b"UPDATE nonexistent_key value\n")
+    response = sock.recv(1024).decode()
+    assert "ERROR: Key not found" in response
+
+def test_delete_nonexistent_key(client_connection):
+    sock, _ = client_connection
+    sock.sendall(b"DELETE nonexistent_key\n")
+    response = sock.recv(1024).decode()
+    assert "ERROR: Key not found" in response
+
+def test_multiple_updates(client_connection):
+    sock, _ = client_connection
+    
+    sock.sendall(b"PUT multi_update_key value1\n")
+    sock.recv(1024)
+    
+    for i in range(3):
+        sock.sendall(f"UPDATE multi_update_key value{i+2}\n".encode())
+        response = sock.recv(1024).decode()
+        assert "SUCCESS" in response
+        
+        sock.sendall(b"GET multi_update_key\n")
+        response = sock.recv(1024).decode()
+        assert f"value{i+2}" in response
+
+def test_delete_and_recreate(client_connection):
+    sock, _ = client_connection
+    
+    sock.sendall(b"PUT recreate_key value1\n")
+    sock.recv(1024)
+    
+    sock.sendall(b"DELETE recreate_key\n")
+    response = sock.recv(1024).decode()
+    assert "SUCCESS" in response
+    
+    sock.sendall(b"PUT recreate_key value2\n")
+    response = sock.recv(1024).decode()
+    assert "SUCCESS" in response
+
+def test_add_node(client_connection):
+    sock, leader = client_connection
+    
+    # Initialize match_index if not exists
+    if not hasattr(leader, 'match_index'):
+        leader.match_index = {peer: -1 for peer in leader.peers}
+    
+    sock.sendall(b"ADD-NODE localhost:7003\n")
+    response = sock.recv(1024).decode()
+    assert "Node" in response
+    time.sleep(2)
+
+def test_remove_node(client_connection):
+    sock, _ = client_connection
+    
+    # First add a node
+    sock.sendall(b"ADD-NODE localhost:7004\n")
+    sock.recv(1024)
+    time.sleep(1)
+    
+    # Then remove it
+    sock.sendall(b"REMOVE-NODE localhost:7004\n")
+    response = sock.recv(1024).decode()
+    assert "SUCCESS" in response
+    
+    # Verify node removal
+    sock.sendall(b"CLUSTER-STATUS\n")
+    response = sock.recv(1024).decode()
+    assert "localhost:7004" not in response
+
+def test_invalid_node_operations(client_connection):
+    sock, _ = client_connection
+    
+    # Invalid address format
+    sock.sendall(b"ADD-NODE invalid_address\n")
+    response = sock.recv(1024).decode()
+    assert "ERROR: Invalid address format" in response
+    
+    # Remove non-existent node
+    sock.sendall(b"REMOVE-NODE localhost:9999\n")
+    response = sock.recv(1024).decode()
+    assert "ERROR: Node" in response and "does not exist" in response
+
+def test_node_data_replication_after_add(client_connection):
+    sock, _ = client_connection
+    
+    # Add data before adding new node
+    sock.sendall(b"PUT replication_test value1\n")
+    sock.recv(1024)
+    
+    # Add new node
+    sock.sendall(b"ADD-NODE localhost:7005\n")
+    sock.recv(1024)
+    time.sleep(2)  # Allow replication
+    
+    # Add more data
+    sock.sendall(b"PUT replication_test2 value2\n")
+    sock.recv(1024)
+    time.sleep(1)  # Allow replication
+    
+    # Verify cluster status
+    sock.sendall(b"CLUSTER-STATUS\n")
+    response = sock.recv(1024).decode()
+    assert "All nodes in sync" in response
