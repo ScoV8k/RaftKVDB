@@ -38,12 +38,10 @@ class Node:
         logging.info(f"Node {self.node_id} started at port {self.port} (Raft) and {self.port + 100} (Client)")
 
         self.next_index = {} 
-        self.match_index = {}
         self.commit_index = -1 
         
         for peer in peers:
             self.next_index[peer] = 0
-            self.match_index[peer] = -1
 
 
     def sync_data(self):
@@ -275,7 +273,6 @@ class Node:
 
         if message["term"] > self.current_term:
             self.current_term = message["term"]
-            self.voted_for = None
 
         prev_log_index = message["prev_log_index"]
         if prev_log_index >= len(self.database.log):

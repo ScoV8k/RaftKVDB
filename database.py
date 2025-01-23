@@ -14,6 +14,8 @@ class Database:
         value = entry.get("value")
 
         if operation == "SET":
+            if key in self.store.keys():
+                return "ERROR: Key already exists."
             self.store[key] = value
             return f"SUCCESS: {key} -> {value} added."
         elif operation == "UPDATE":
