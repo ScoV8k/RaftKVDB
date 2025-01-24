@@ -182,7 +182,7 @@ def test_invalid_node_operations(client_connection):
 
 def test_add_node(client_connection):
     sock, leader = client_connection
-    leader.match_index = {}  
+    leader.commit_index = {}  
     
     sock.sendall(b"ADD-NODE localhost:7003\n")
     response = sock.recv(1024).decode()
@@ -205,8 +205,8 @@ def test_remove_node(basic_network):
         if leader.peers:
             peer = leader.peers[0]
 
-            if not hasattr(leader, 'match_index'):
-                leader.match_index = {peer: -1 for peer in leader.peers}
+            if not hasattr(leader, 'commit_index'):
+                leader.commit_index = {peer: -1 for peer in leader.peers}
             
             sock.sendall(f"REMOVE-NODE localhost:{peer[1]}\n".encode())
             response = sock.recv(1024).decode()
