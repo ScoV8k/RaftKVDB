@@ -160,30 +160,30 @@ def test_delete_and_recreate(client_connection):
 def test_invalid_node_operations(client_connection):
     sock, _ = client_connection
     
-    # Invalid address format
+
     sock.sendall(b"ADD-NODE invalid_address\n")
     response = sock.recv(1024).decode()
     assert "ERROR: Invalid address format" in response
     
-    # Remove non-existent node
+
     sock.sendall(b"REMOVE-NODE localhost:9999\n")
     response = sock.recv(1024).decode()
     assert "ERROR: Node" in response and "does not exist" in response
 
 def test_add_node(client_connection):
     sock, leader = client_connection
-    leader.match_index = {}  # Initialize match_index
+    leader.match_index = {}  
     
     sock.sendall(b"ADD-NODE localhost:7003\n")
     response = sock.recv(1024).decode()
     assert "SUCCESS" in response
     time.sleep(1)
 
-# Add this helper function
+
 def clear_welcome_messages(sock, leader):
     sock.recv(1024)  # Welcome message
     if leader.state == "leader":
-        sock.recv(1024)  # Control cluster commands
+        sock.recv(1024) 
     
 def test_remove_node(basic_network):
     leader = next(node for node in basic_network if node.state == "leader")
@@ -194,7 +194,7 @@ def test_remove_node(basic_network):
     try:
         if leader.peers:
             peer = leader.peers[0]
-            # First initialize match_index
+
             if not hasattr(leader, 'match_index'):
                 leader.match_index = {peer: -1 for peer in leader.peers}
             
@@ -215,18 +215,15 @@ def test_node_data_replication_after_add(basic_network):
     test_value = "test_value"
     
     try:
-        # Add data and wait for initial sync
         sock.sendall(f"PUT {test_key} {test_value}\n".encode())
         response = sock.recv(1024).decode()
         assert "SUCCESS" in response
         time.sleep(2)
         
-        # Force multiple syncs
         for _ in range(3):
             leader.sync_data()
             time.sleep(1)
         
-        # Verify replication on followers
         for node in basic_network:
             if node != leader and node.state == "follower":
                 assert node.database.store.get(test_key) == test_value, \
