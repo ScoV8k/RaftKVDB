@@ -226,14 +226,11 @@ def test_node_data_replication_after_add(basic_network):
             leader.sync_data()
             time.sleep(1)
         
-        # Verify on at least one follower
-        replication_success = False
-        for follower in [n for n in basic_network if n != leader]:
-            if follower.state == "follower":
-                if test_value == follower.database.store.get(test_key):
-                    replication_success = True
-                    break
-        assert replication_success, "Replication failed after multiple attempts"
+        # Verify replication on followers
+        for node in basic_network:
+            if node != leader and node.state == "follower":
+                assert node.database.store.get(test_key) == test_value, \
+                    f"Node {node.node_id} did not replicate correctly"
     
     finally:
         if leader.database.store.get(test_key):
