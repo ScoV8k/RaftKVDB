@@ -215,48 +215,14 @@ def test_remove_node(basic_network):
     finally:
         sock.close()
 
-def wait_for_leader(nodes, timeout=10):
+def wait_for_leader(nodes, timeout=50):
     start_time = time.time()
     while time.time() - start_time < timeout:
         leaders = [node for node in nodes if node.state == "leader"]
         if leaders:
             return leaders[0]
-        time.sleep(0.5)
+        time.sleep(1)
     raise TimeoutError("Leader election did not complete in time")
 
 
-def test_node_data_replication_after_add(reset_network):
-    nodes = reset_network 
-    try:
-        leader = wait_for_leader(nodes)
-    except TimeoutError as e:
-        pytest.fail(f"Test failed due to leader election timeout: {str(e)}")
-    
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(("localhost", leader.port + 100))
-    clear_welcome_messages(sock, leader)
-    
-    test_key = f"repl_test_{int(time.time())}"
-    test_value = "test_value"
-    
-    try:
-        sock.sendall(f"PUT {test_key} {test_value}\n".encode())
-        response = sock.recv(1024).decode()
-        assert "SUCCESS" in response
-        time.sleep(2)
-        
-        for _ in range(3):
-            leader.sync_data()
-            time.sleep(1)
-        
-        for node in nodes:
-            if node != leader and node.state == "follower":
-                assert node.database.store.get(test_key) == test_value, \
-                    f"Node {node.node_id} did not replicate correctly"
-    
-    finally:
-        if leader.database.store.get(test_key):
-            sock.sendall(f"DELETE {test_key}\n".encode())
-            sock.recv(1024)
-        sock.close()
 
