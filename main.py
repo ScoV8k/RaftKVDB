@@ -1,18 +1,16 @@
 import time
-from node import Node
 import signal
 import threading
+import argparse
+from node import Node
 
-def create_network():
+def create_network(ports):
     nodes = []
-    ports = [7000, 7001, 7002]
-
     for i, port in enumerate(ports):
         peer_ports = ports[:i] + ports[i + 1:]
-        peers = [("localhost", p) for p in peer_ports]
+        peers = [("127.0.0.1", p) for p in peer_ports]
         node = Node(f"Node_{i+1}", "localhost", port, peers)
         nodes.append(node)
-
     return nodes
 
 def start_network(nodes):
@@ -31,8 +29,20 @@ def start_new_node(node_id, host, port, peers):
     return new_node
 
 if __name__ == "__main__":
-    print("Starting network...")
-    nodes = create_network()
+    parser = argparse.ArgumentParser(description="Start a network of nodes.")
+    parser.add_argument(
+        "--ports",
+        type=int,
+        nargs="+",
+        required=True,
+        help="List of ports for the nodes (e.g., --ports 9000 9001 9002)",
+    )
+    args = parser.parse_args()
+
+    ports = args.ports
+    print("Starting network with ports:", ports)
+
+    nodes = create_network(ports)
     
     def handle_exit(signum, frame):
         stop_network(nodes)

@@ -38,12 +38,10 @@ class Node:
         logging.info(f"Node {self.node_id} started at port {self.port} (Raft) and {self.port + 100} (Client)")
 
         self.next_index = {} 
-        self.match_index = {}
         self.commit_index = -1 
         
         for peer in peers:
             self.next_index[peer] = 0
-            self.match_index[peer] = -1
 
     def sync_data(self):
         if self.state != "leader":
@@ -52,7 +50,6 @@ class Node:
         for peer in self.peers:
             next_idx = self.next_index[peer]
             
-            # Prepare entries to send
             entries = self.database.log[next_idx:] if next_idx < len(self.database.log) else []
             
             append_entries_msg = {
@@ -189,16 +186,6 @@ class Node:
                             self.voted_for = None
                         logging.info(f"Node {self.node_id}: Received heartbeat from leader {self.leader}")
 
-                elif message["type"] == "sync_data":
-                    if message["term"] >= self.current_term:
-                        for key, value in message["data"].items():
-                            if key not in self.database.store:
-                                self.database.store[key] = value
-                        for old_key in self.database.store:
-                            if old_key not in message["data"]:
-                                del self.database.store[old_key]
-                        logging.info(f"Node {self.node_id}: Synchronized data from leader {self.leader}")
-
                 elif message["type"] == "request_vote":
                     if message["term"] >= self.current_term and (self.voted_for is None or self.voted_for == message["candidate_id"]):
                         self.current_term = message["term"]
@@ -238,17 +225,27 @@ class Node:
                             self.state = "follower"
                             self.voted_for = None
                         self.last_heartbeat = time.time()
+
                 elif message["type"] == "append_entries":
                     response = self.handle_append_entries(message, addr)
                     if response:
                         self.send_message(response, addr)
+
+                elif message["type"] == "append_entries_response":
+                    if message["term"] == self.current_term:
+                        sender_peer = (addr[0], addr[1])
+                        if sender_peer in self.peers:
+                            if message["success"]:
+                                new_last_index = message.get("next_index")
+                                if new_last_index >= 0:
+                                    self.next_index[sender_peer] = new_last_index
+
 
                 elif message["type"] == "remove_node":
                     removed_node = message["removed_node"]
                     if removed_node in self.peers:
                         self.peers.remove(removed_node)
                         self.next_index.pop(removed_node, None)
-                        self.match_index.pop(removed_node, None)
                         logging.info(f"Node {self.node_id}: Node {removed_node} removed from cluster by leader.")
                 elif message["type"] == "stop_node":
                     logging.info(f"Node {self.node_id}: Received stop signal. Stopping...")
@@ -264,7 +261,9 @@ class Node:
             "type": "append_entries_response",
             "term": self.current_term,
             "success": False,
-            "node_id": self.node_id
+            "node_id": self.node_id,
+            "node_peer": self.port,
+            "match_index": len(self.database.log)
         }
         if message["term"] < self.current_term:
             return response
@@ -296,6 +295,7 @@ class Node:
             self.database.commit_log_entries(min(message["leader_commit"], len(self.database.log) - 1))
 
         response["success"] = True
+        response["next_index"] = len(self.database.log)
         return response
 
     def start_client_handler(self):
@@ -335,7 +335,6 @@ class Node:
 
             self.peers.append((host, port))
             self.next_index[(host, port)] = 0
-            self.match_index[(host, port)] = -1
             logging.info(f"Node {self.node_id}: Added node {address} to cluster.")
             return f"SUCCESS: Node {address} added to cluster."
         return f"ERROR: Node {address} already exists in cluster."
@@ -363,7 +362,6 @@ class Node:
 
             self.peers.remove((host, port))
             self.next_index.pop((host, port), None)
-            self.match_index.pop((host, port), None)
 
             self.broadcast_remove_node(address)
 
@@ -375,10 +373,10 @@ class Node:
     def get_cluster_status(self):
         leader = self.leader if self.leader else "Unknown"
         active_nodes = [f"{self.host}:{self.port}"] + [f"{peer[0]}:{peer[1]}" for peer in self.peers]
-        sync_status = "All nodes in sync." if all(
-            self.match_index.get(peer) == len(self.database.log) - 1 for peer in self.peers
-        ) else "Nodes out of sync."
-        
+        sync_status = f"All nodes in sync. Logs number in every node: {len(self.database.log)}" if all(
+            self.next_index.get(peer) == len(self.database.log) for peer in self.peers
+        ) else f"Nodes out of sync." 
+
         status = (
             f"Cluster Status:\n"
             f"Leader: {leader}\n"

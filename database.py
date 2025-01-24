@@ -38,27 +38,27 @@ class Database:
                 result = self.apply_log_entry(self.log[self.commit_index])
         return result
 
-    # def set(self, key, value):
-    #     self.store[key] = value
-    #     return f"SUCCESS: {key} -> {value} added."
-
     def get(self, key):
         if key in self.store:
             return f"{key} -> {self.store[key]}"
         return "ERROR: Key not found."
 
-    # def update(self, key, value):
-    #     if key in self.store:
-    #         self.store[key] = value
-    #         return f"SUCCESS: {key} updated to {value}."
-    #     return "ERROR: Key not found."
-
-    # def delete(self, key):
-    #     if key in self.store:
-    #         del self.store[key]
-    #         return f"SUCCESS: {key} removed."
-    #     return "ERROR: Key not found."
-
     def status(self):
         keys = ", ".join(self.store.keys())
         return f"Database keys: {keys}" if keys else "Database is empty."
+    
+    def show_logs(self):
+        if not self.log:
+            return "Logs are empty."
+
+        lines = []
+        for index, entry in enumerate(self.log):
+            term = entry.get("term", "-")
+            operation = entry.get("operation", "-")
+            key = entry.get("key", "-")
+            value = entry.get("value", "-")
+            lines.append(
+                f"Index: {index}, Term: {term}, Operation: {operation}, Key: {key}, Value: {value}"
+            )
+
+        return "Database logs:\n" + "\n".join(lines)

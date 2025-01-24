@@ -22,16 +22,13 @@ class ClientHandler:
                     response = "ERROR: Invalid command format."
 
                     if command[0].upper() == "ADD-NODE" \
-                        and len(command) == 2 \
-                        and self.node.state == "leader":
+                        and len(command) == 2 and self.node.state == "leader":
                         response = self.node.add_node(command[1])
                     elif command[0].upper() == "REMOVE-NODE" \
-                        and len(command) == 2 \
-                        and self.node.state == "leader":
+                        and len(command) == 2 and self.node.state == "leader":
                         response = self.node.remove_node(command[1])
                     elif command[0].upper() == "CLUSTER-STATUS" \
-                        and len(command) == 1 \
-                        and self.node.state == "leader":
+                        and len(command) == 1 and self.node.state == "leader":
                         response = self.node.get_cluster_status()
                     elif command[0].upper() == "PUT" and len(command) == 3:
                         response = self.node.handle_client_operation("SET", command[1], command[2])
@@ -43,6 +40,8 @@ class ClientHandler:
                         response = self.node.handle_client_operation("DELETE", command[1])
                     elif command[0].upper() == "STATUS" and len(command) == 1:
                         response = self.database.status()
+                    elif command[0].upper() == "LOGS" and len(command) == 1:
+                        response = self.database.show_logs()
 
 
                     conn.sendall(response.encode() + b"\n")
