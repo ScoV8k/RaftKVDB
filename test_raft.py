@@ -6,6 +6,16 @@ from concurrent.futures import ThreadPoolExecutor
 from node import Node
 from main import create_network, start_network, stop_network
 
+@pytest.fixture
+def reset_network(basic_network):
+    stop_network(basic_network)
+    nodes = create_network()
+    start_network(nodes)
+    time.sleep(5)
+    yield nodes
+    stop_network(nodes)
+
+
 @pytest.fixture(scope="module")
 def basic_network():
     nodes = create_network()
@@ -205,8 +215,23 @@ def test_remove_node(basic_network):
     finally:
         sock.close()
 
-def test_node_data_replication_after_add(basic_network):
-    leader = next(node for node in basic_network if node.state == "leader")
+def wait_for_leader(nodes, timeout=10):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        leaders = [node for node in nodes if node.state == "leader"]
+        if leaders:
+            return leaders[0]
+        time.sleep(0.5)
+    raise TimeoutError("Leader election did not complete in time")
+
+
+def test_node_data_replication_after_add(reset_network):
+    nodes = reset_network 
+    try:
+        leader = wait_for_leader(nodes)
+    except TimeoutError as e:
+        pytest.fail(f"Test failed due to leader election timeout: {str(e)}")
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(("localhost", leader.port + 100))
     clear_welcome_messages(sock, leader)
@@ -224,7 +249,7 @@ def test_node_data_replication_after_add(basic_network):
             leader.sync_data()
             time.sleep(1)
         
-        for node in basic_network:
+        for node in nodes:
             if node != leader and node.state == "follower":
                 assert node.database.store.get(test_key) == test_value, \
                     f"Node {node.node_id} did not replicate correctly"
@@ -234,3 +259,4 @@ def test_node_data_replication_after_add(basic_network):
             sock.sendall(f"DELETE {test_key}\n".encode())
             sock.recv(1024)
         sock.close()
+
